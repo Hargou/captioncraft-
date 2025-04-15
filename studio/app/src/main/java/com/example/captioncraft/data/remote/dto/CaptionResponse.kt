@@ -14,7 +14,8 @@ data class CaptionResponse(
                     userId = (captionData[2] as? Double)?.toInt() ?: -1,
                     text = captionData[3] as String,
                     created_at = captionData[4] as String,
-                    likes = (captionData[5] as? Double)?.toInt() ?: 0
+                    likes = (captionData[5] as? Double)?.toInt() ?: 0,
+                    username = if (captionData.size > 7) captionData[7] as? String else null
                 )
             }
         }

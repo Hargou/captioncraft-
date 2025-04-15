@@ -31,7 +31,8 @@ data class FeedUiState(
     val error: String? = null,
     val commentsForCaption: Map<Int, List<Comment>> = emptyMap(),
     val showCommentsForCaption: Int? = null,
-    val likedCaptions: MutableSet<Int> = mutableSetOf() // Track liked captions locally
+    val likedCaptions: MutableSet<Int> = mutableSetOf(), // Track liked captions locally
+    val cachedPostCaptions: Map<Int, List<Caption>> = emptyMap() // Cache for post captions
 )
 
 @HiltViewModel
@@ -55,15 +56,23 @@ class FeedViewModel @Inject constructor(
                 postRepository.getFeedPosts().collect { posts ->
                     Log.d("FeedViewModel", "Got ${posts.size} posts from repository")
                     
+                    val cachedCaptions = _uiState.value.cachedPostCaptions.toMutableMap()
+                    
                     val postsWithCaptions = posts.map { post ->
                         try {
-                            // Fetch captions for this post
-                            val captions = captionRepository.getCaptionsForPost(post.id).first()
-                            Log.d("FeedViewModel", "Loaded ${captions.size} captions for post ${post.id}")
-                            
-                            // Log individual captions for debugging
-                            captions.forEach { caption ->
-                                Log.d("FeedViewModel", "Caption for post ${post.id}: id=${caption.id}, text='${caption.text}'")
+                            // Check if we have cached captions for this post
+                            val captions = if (cachedCaptions.containsKey(post.id) && cachedCaptions[post.id]?.isNotEmpty() == true) {
+                                Log.d("FeedViewModel", "Using cached captions for post ${post.id}")
+                                cachedCaptions[post.id] ?: emptyList()
+                            } else {
+                                // Fetch captions for this post
+                                val fetchedCaptions = captionRepository.getCaptionsForPost(post.id).first()
+                                Log.d("FeedViewModel", "Loaded ${fetchedCaptions.size} captions for post ${post.id}")
+                                
+                                // Cache the captions
+                                cachedCaptions[post.id] = fetchedCaptions
+                                
+                                fetchedCaptions
                             }
                             
                             // Copy the post with the captions and ensure the caption count matches
@@ -81,7 +90,11 @@ class FeedViewModel @Inject constructor(
                     }
                     
                     Log.d("FeedViewModel", "Loaded ${postsWithCaptions.size} posts with captions")
-                    _uiState.update { it.copy(posts = postsWithCaptions, isLoading = false) }
+                    _uiState.update { it.copy(
+                        posts = postsWithCaptions, 
+                        isLoading = false,
+                        cachedPostCaptions = cachedCaptions
+                    ) }
                 }
             } catch (e: Exception) {
                 Log.e("FeedViewModel", "Error loading feed", e)

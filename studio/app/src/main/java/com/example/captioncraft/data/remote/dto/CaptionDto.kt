@@ -6,5 +6,6 @@ data class CaptionDto(
     val userId: Int,
     val text: String,
     val created_at: String,
-    val likes: Int
+    val likes: Int,
+    val username: String? = null
 )

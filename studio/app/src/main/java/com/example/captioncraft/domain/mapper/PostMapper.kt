@@ -12,7 +12,7 @@ fun PostDto.toDomain(): Post = Post(
     createdAt = createdAt,
     likeCount = likeCount,
     captionCount = captionCount,
-    username = "",
+    username = username.ifEmpty { "User $userId" },
     content = "",
     likes = likeCount,
     likedByUser = false
@@ -25,7 +25,7 @@ fun PostEntity.toDomain(): Post = Post(
     createdAt = createdAt,
     likeCount = likeCount,
     captionCount = captionCount,
-    username = "",
+    username = username.ifEmpty { "User $userId" },
     content = "",
     likes = likeCount,
     likedByUser = false
@@ -37,7 +37,8 @@ fun Post.toEntity(): PostEntity = PostEntity(
     imageUrl = imageUrl,
     createdAt = createdAt,
     likeCount = likeCount,
-    captionCount = captionCount
+    captionCount = captionCount,
+    username = username
 )
 
 fun PostDto.toEntity(): PostEntity = PostEntity(
@@ -46,5 +47,6 @@ fun PostDto.toEntity(): PostEntity = PostEntity(
     imageUrl = imageUrl,
     createdAt = createdAt,
     likeCount = likeCount,
-    captionCount = captionCount
+    captionCount = captionCount,
+    username = username
 )

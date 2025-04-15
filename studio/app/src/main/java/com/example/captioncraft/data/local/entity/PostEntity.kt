@@ -10,6 +10,7 @@ data class PostEntity(
     val imageUrl: String,
     val createdAt: String,
     val likeCount: Int,
-    val captionCount: Int
+    val captionCount: Int,
+    val username: String = ""
 )
 

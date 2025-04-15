@@ -8,5 +8,6 @@ data class Caption(
     val userId: Int,
     val text: String,
     val createdAt: Date?,
-    val likes: Int
+    val likes: Int,
+    val username: String = "User $userId"  // Default to "User ID" if username not provided
 )

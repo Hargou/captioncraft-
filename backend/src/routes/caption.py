@@ -53,10 +53,11 @@ class Controller_Caption(Controller):
             cursor = connection.cursor()
 
             cursor.execute("""
-                SELECT *
-                FROM Caption
-                WHERE postId = ?
-                ORDER BY likes DESC, created_at ASC
+                SELECT c.*, u.username
+                FROM Caption c
+                JOIN User u ON c.userId = u.id
+                WHERE c.postId = ?
+                ORDER BY c.likes DESC, c.created_at ASC
             """, (postId,))
 
             queriedCaptions = cursor.fetchall()

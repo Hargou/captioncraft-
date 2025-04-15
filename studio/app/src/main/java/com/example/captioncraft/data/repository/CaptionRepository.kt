@@ -27,46 +27,36 @@ class CaptionRepository @Inject constructor(
 ) {
     fun getCaptionsForPost(postId: Int): Flow<List<Caption>> {
         return flow {
-            val response = captionApi.getCaptions(postId)
-            Log.d(TAG, "Got captions response for post $postId: ${response.data.size} items")
-            
-            // Process the response to convert it to domain objects
-            val captionsDto = response.data.mapIndexed { index, captionData ->
-                try {
-                    // Parse the database row into a CaptionDto
-                    val dto = com.example.captioncraft.data.remote.dto.CaptionDto(
-                        id = (captionData[0] as? Double)?.toInt() ?: -1,
-                        postId = (captionData[1] as? Double)?.toInt() ?: -1,
-                        userId = (captionData[2] as? Double)?.toInt() ?: -1,
-                        text = captionData[3] as String,
-                        created_at = captionData[4] as String,
-                        likes = (captionData[5] as? Double)?.toInt() ?: 0
-                    )
-                    Log.d(TAG, "Created CaptionDto $index: id=${dto.id}, text='${dto.text}'")
-                    dto
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing caption data at index $index: $captionData", e)
-                    null
-                }
-            }.filterNotNull()
-            
-            // Map to domain objects
-            val captions = captionsDto.mapIndexed { index, dto ->
-                try {
-                    val caption = dto.toDomain()
-                    Log.d(TAG, "Mapped CaptionDto to domain $index: id=${caption.id}, text='${caption.text}'")
-                    caption
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error mapping CaptionDto to domain at index $index", e)
-                    null
-                }
-            }.filterNotNull()
-            
-            Log.d(TAG, "Processed ${captions.size} captions for post $postId")
-            emit(captions)
+            try {
+                val response = captionApi.getCaptions(postId)
+                Log.d(TAG, "Got captions response for post $postId: ${response.data.size} items")
+                
+                // Use the helper method to convert response to DTOs
+                val captionsDto = CaptionResponse.toCaptionDtoList(response)
+                
+                // Map to domain objects
+                val captions = captionsDto.mapIndexed { index, dto ->
+                    try {
+                        val caption = dto.toDomain()
+                        Log.d(TAG, "Mapped CaptionDto to domain $index: id=${caption.id}, text='${caption.text}', username=${caption.username}")
+                        caption
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error mapping CaptionDto to domain at index $index", e)
+                        null
+                    }
+                }.filterNotNull()
+                
+                Log.d(TAG, "Processed ${captions.size} captions for post $postId")
+                emit(captions)
+            } catch (e: Exception) {
+                // Handle exceptions properly
+                Log.e(TAG, "Error fetching captions for post $postId", e)
+                // Emit empty list for all exceptions
+                emit(emptyList())
+            }
         }.catch { e ->
             // Handle exceptions properly with the Flow.catch operator
-            Log.e(TAG, "Error fetching captions for post $postId", e)
+            Log.e(TAG, "Error in caption flow for post $postId", e)
             // Emit empty list for all exceptions
             emit(emptyList())
         }

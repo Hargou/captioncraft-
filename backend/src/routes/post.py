@@ -82,14 +82,16 @@ class Controller_Post(Controller):
 
             if userId is not None:
                 cursor.execute("""
-                    SELECT *
-                    FROM Post
-                    WHERE userId = ?
+                    SELECT p.*, u.username
+                    FROM Post p
+                    JOIN User u ON p.userId = u.id
+                    WHERE p.userId = ?
                 """, (userId,))
             else:
                 cursor.execute("""
-                    SELECT *
-                    FROM Post
+                    SELECT p.*, u.username
+                    FROM Post p
+                    JOIN User u ON p.userId = u.id
                 """)
 
             queriedPosts = cursor.fetchall()

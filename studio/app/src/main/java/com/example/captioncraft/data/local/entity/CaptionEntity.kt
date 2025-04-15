@@ -27,6 +27,7 @@ data class CaptionEntity(
     val userId: Int,
     val text: String,
     val createdAt: Date = Date(),
-    val likes: Int = 0
+    val likes: Int = 0,
+    val username: String? = null
 )
 

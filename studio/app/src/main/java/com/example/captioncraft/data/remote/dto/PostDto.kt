@@ -27,7 +27,8 @@ data class PostDto(
     val imageUrl: String,
     val createdAt: String,
     val likeCount: Int,
-    val captionCount: Int
+    val captionCount: Int,
+    val username: String = ""
 ) {
     companion object {
         private const val BASE_URL = "http://10.0.2.2:8000"
@@ -50,7 +51,19 @@ data class PostDto(
                 0
             }
             
-            Log.d("PostDto", "Parsed caption count: $captionCount for post ID: ${(array[0] as? Double)?.toInt() ?: -1}")
+            // Username is at index 7 (8th position)
+            val username = if (array.size > 7 && array[7] != null) {
+                try {
+                    array[7] as String
+                } catch (e: Exception) {
+                    Log.e("PostDto", "Error parsing username from $array", e)
+                    ""
+                }
+            } else {
+                ""
+            }
+            
+            Log.d("PostDto", "Parsed caption count: $captionCount, username: $username for post ID: ${(array[0] as? Double)?.toInt() ?: -1}")
             
             return PostDto(
                 id = (array[0] as? Double)?.toInt() ?: -1,
@@ -58,7 +71,8 @@ data class PostDto(
                 imageUrl = "$BASE_URL/post/user_post_images/$imageName",
                 createdAt = array[3] as String,
                 likeCount = (array[4] as? Double)?.toInt() ?: 0,
-                captionCount = captionCount
+                captionCount = captionCount,
+                username = username
             )
         }
     }

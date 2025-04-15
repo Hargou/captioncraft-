@@ -7,7 +7,13 @@ import com.example.captioncraft.domain.model.Caption
 import java.util.Date
 
 fun CaptionDto.toDomain() = Caption(
-    id, postId, userId, text, parseIsoDateNonNull(created_at), likes
+    id = id, 
+    postId = postId, 
+    userId = userId, 
+    text = text, 
+    createdAt = parseIsoDateNonNull(created_at), 
+    likes = likes,
+    username = username ?: "User $userId"
 )
 
 
@@ -17,10 +23,19 @@ fun Caption.toEntity() = CaptionEntity(
     userId = userId, 
     text = text, 
     createdAt = createdAt ?: Date(), 
-    likes = likes
+    likes = likes,
+    username = username
 )
 
-fun CaptionEntity.toDomain() = Caption(id, postId, userId, text, createdAt, likes)
+fun CaptionEntity.toDomain() = Caption(
+    id = id, 
+    postId = postId, 
+    userId = userId, 
+    text = text, 
+    createdAt = createdAt, 
+    likes = likes,
+    username = username ?: "User $userId"
+)
 
 fun Caption.toRequestDto(password: String) = CaptionCreateDto(
     postId = postId,

@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,12 +49,24 @@ fun FeedScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     
     LaunchedEffect(key1 = true) {
         viewModel.loadFeed()
     }
     
+    // Show error message if present
+    LaunchedEffect(uiState.error) {
+        if (!uiState.error.isNullOrEmpty()) {
+            snackbarHostState.showSnackbar(
+                message = uiState.error ?: "An error occurred",
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+    
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToAddPost
@@ -115,11 +128,6 @@ fun FeedScreen(
                         )
                     }
                 }
-                
-                if (!uiState.error.isNullOrEmpty()) {
-                    val errorMessage = uiState.error ?: "An error occurred"
-                    Toast.makeText(LocalContext.current, errorMessage, Toast.LENGTH_SHORT).show()
-                }
             }
         }
     }
@@ -141,24 +149,50 @@ fun PostCard(
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // User info
+            // Post author username at the top in large, bold text
+            Text(
+                text = post.username,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            
+            // User info row with profile picture
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "User",
-                    modifier = Modifier.size(40.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = post.username,
-                    style = MaterialTheme.typography.titleMedium
-                )
+                // Profile picture with circle shape
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "User",
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .size(24.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                // Post metadata
+                Column {
+                    Text(
+                        text = "Post #${post.id}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Posted on ${post.createdAt.substring(0, 10)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
             
             // Post image
             AsyncImage(
@@ -195,29 +229,62 @@ fun PostCard(
                 )
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Post content
-            Text(
-                text = post.content,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
+            // Top caption or "No captions yet" message
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                if (post.captions.isNotEmpty()) {
+                    val topCaption = post.captions.first()
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = topCaption.username,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = topCaption.text,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No captions yet",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
             
             // Buttons
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
             ) {
-                Button(
-                    onClick = { onCaptionClick(post.id) },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("View Captions")
+                if (post.captionCount > 0) {
+                    Button(
+                        onClick = { onCaptionClick(post.id) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("View Captions (${post.captionCount})")
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
-                
-                Spacer(modifier = Modifier.width(8.dp))
                 
                 Button(
                     onClick = { onAddCaptionClick(post.id) },

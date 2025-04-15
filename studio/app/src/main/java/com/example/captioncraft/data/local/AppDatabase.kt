@@ -20,7 +20,7 @@ import com.example.captioncraft.data.local.entity.UserEntity
         CaptionEntity::class,
         FollowEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(DateConverter::class)
