@@ -22,8 +22,15 @@ class UserRepository @Inject constructor(
     private val sessionManager: UserSessionManager
 ) {
 
+    // Base URL for API
+    val baseUrl = "http://10.0.2.2:8000"
+
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser
+
+    // Add this computed property for convenience
+    val username: String?
+        get() = _currentUser.value?.name
 
     suspend fun login(username: String, password: String): Result<User> {
         return try {

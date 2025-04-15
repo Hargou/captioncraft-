@@ -9,6 +9,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.captioncraft.R
 import com.example.captioncraft.domain.model.Post
 import com.example.captioncraft.domain.model.Caption
@@ -31,51 +35,90 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.text.style.TextOverflow
 import android.util.Log
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import androidx.compose.ui.text.style.TextAlign
 
 @Composable
 fun FeedScreen(
-    viewModel: FeedViewModel = hiltViewModel()
+    viewModel: FeedViewModel = hiltViewModel(),
+    onPostClick: (Int) -> Unit,
+    onAddCaptionClick: (Int) -> Unit,
+    onNavigateToAddPost: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
-    when {
-        uiState.isLoading -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+    
+    LaunchedEffect(key1 = true) {
+        viewModel.loadFeed()
+    }
+    
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToAddPost
             ) {
-                CircularProgressIndicator()
-            }
-        }
-        !uiState.error.isNullOrEmpty() -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = uiState.error ?: "Unknown error",
-                    color = MaterialTheme.colorScheme.error
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Post"
                 )
             }
         }
-        else -> {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(uiState.posts) { post ->
-                    PostCard(
-                        post = post,
-                        onAddCaption = { text -> viewModel.addCaption(post.id, text) },
-                        onLikeCaption = { captionId -> viewModel.toggleLike(captionId) },
-                        onLikePost = { viewModel.togglePostLike(post.id) },
-                        onViewComments = { captionId -> viewModel.loadCommentsForCaption(captionId) },
-                        onAddComment = { captionId, text -> viewModel.addComment(captionId, text) },
-                        comments = uiState.commentsForCaption[uiState.showCommentsForCaption] ?: emptyList(),
-                        showCommentsForCaptionId = uiState.showCommentsForCaption,
-                        onHideComments = { viewModel.hideComments() }
+    ) { paddingValues ->
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (uiState.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (uiState.posts.isEmpty() && uiState.error.isNullOrEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        modifier = Modifier.size(120.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No posts yet",
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Be the first to share something interesting!",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(uiState.posts) { post ->
+                        PostCard(
+                            post = post,
+                            onLikePost = { viewModel.togglePostLike(it) },
+                            onCaptionClick = onPostClick,
+                            onAddCaptionClick = onAddCaptionClick
+                        )
+                    }
+                }
+                
+                if (!uiState.error.isNullOrEmpty()) {
+                    val errorMessage = uiState.error ?: "An error occurred"
+                    Toast.makeText(LocalContext.current, errorMessage, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -86,142 +129,102 @@ fun FeedScreen(
 @Composable
 fun PostCard(
     post: Post,
-    onAddCaption: (String) -> Unit,
-    onLikeCaption: (Int) -> Unit,
-    onLikePost: () -> Unit,
-    onViewComments: (Int) -> Unit,
-    onAddComment: (Int, String) -> Unit,
-    comments: List<Comment>,
-    showCommentsForCaptionId: Int?,
-    onHideComments: () -> Unit
+    onLikePost: (Int) -> Unit,
+    onCaptionClick: (Int) -> Unit,
+    onAddCaptionClick: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    var showAddCaption by remember { mutableStateOf(false) }
-    var captionText by remember { mutableStateOf("") }
-    
-    // Debug log to check captions
-    Log.d("FeedScreen", "PostCard for post ID ${post.id} has ${post.captions.size} captions")
-    post.captions.forEach { caption ->
-        Log.d("FeedScreen", "Caption ID: ${caption.id}, Text: ${caption.text}")
-    }
-
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .wrapContentHeight(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .padding(8.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // User info
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "User",
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = post.username,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
             // Post image
             AsyncImage(
-                model = post.imageUrl,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(post.imageUrl)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp),
+                    .height(250.dp),
                 contentScale = ContentScale.Crop,
-                error = painterResource(id = R.drawable.placeholder_image)
+                error = painterResource(id = R.drawable.placeholder_image),
+                placeholder = painterResource(id = R.drawable.placeholder_image)
             )
+            
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Post stats and like button
+            // Like button and count
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(onClick = onLikePost) {
-                        Icon(
-                            imageVector = Icons.Default.ThumbUp,
-                            contentDescription = stringResource(R.string.like),
-                            tint = if (post.likeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                    Text(
-                        text = post.likeCount.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (post.likeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                IconButton(onClick = { onLikePost(post.id) }) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Like Post",
+                        tint = if (post.likedByUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
                 Text(
-                    text = "Captions: ${post.captionCount}",
+                    text = "${post.likes} likes",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-
-            // Add caption button/field
-            if (showAddCaption) {
-                OutlinedTextField(
-                    value = captionText,
-                    onValueChange = { captionText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.add_caption)) }
-                )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Post content
+            Text(
+                text = post.content,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Buttons
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Button(
-                    onClick = {
-                        if (captionText.isNotBlank()) {
-                            onAddCaption(captionText)
-                            captionText = ""
-                            showAddCaption = false
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.End)
+                    onClick = { onCaptionClick(post.id) },
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(stringResource(R.string.add_caption))
+                    Text("View Captions")
                 }
-            } else {
-                OutlinedButton(
-                    onClick = { showAddCaption = true },
-                    modifier = Modifier.align(Alignment.End)
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                Button(
+                    onClick = { onAddCaptionClick(post.id) },
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.add_caption))
+                    Text("Add Caption")
                 }
-            }
-            
-            // Captions Section with debug
-            if (post.captions.isEmpty()) {
-                Text(
-                    text = "No captions yet. Add one!",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            } else {
-                Text(
-                    text = "Captions (${post.captions.size}):",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    lazyRowItems(post.captions) { caption ->
-                        CaptionItem(
-                            caption = caption,
-                            onLike = { onLikeCaption(caption.id) },
-                            onViewComments = { onViewComments(caption.id) },
-                            isShowingComments = showCommentsForCaptionId == caption.id
-                        )
-                    }
-                }
-            }
-            
-            // Comments Section (shown only when a caption is selected)
-            if (showCommentsForCaptionId != null) {
-                CommentSection(
-                    captionId = showCommentsForCaptionId,
-                    comments = comments,
-                    onAddComment = onAddComment,
-                    onClose = onHideComments
-                )
             }
         }
     }

@@ -79,7 +79,19 @@ fun CaptionCraftApp() {
             startDestination = Screen.Login.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Feed.route) { FeedScreen() }
+            composable(Screen.Feed.route) { 
+                FeedScreen(
+                    onPostClick = { postId -> 
+                        // You can navigate to post details screen here
+                    },
+                    onAddCaptionClick = { postId ->
+                        // You can navigate to add caption screen here
+                    },
+                    onNavigateToAddPost = {
+                        navController.navigate(Screen.Upload.route)
+                    }
+                ) 
+            }
             composable(Screen.Search.route) { SearchScreen() }
             composable(Screen.Upload.route) { UploadScreen() }
             composable(Screen.Profile.route) { ProfileScreen(navController = navController) }

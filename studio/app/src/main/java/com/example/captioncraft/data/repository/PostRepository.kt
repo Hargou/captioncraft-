@@ -31,6 +31,9 @@ class PostRepository @Inject constructor(
     private val userRepository: UserRepository,
     private val sessionManager: UserSessionManager
 ) {
+    // Base URL for image paths
+    val baseUrl = "http://10.0.2.2:8000"
+    
     suspend fun clearCache() {
         postDao.deleteAllPosts()
     }
@@ -41,11 +44,15 @@ class PostRepository @Inject constructor(
         
         // Try to fetch from server first
         try {
-            val posts = postApi.getAllPosts()
-            // Delete all existing posts before inserting new ones
-            postDao.deleteAllPosts()
-            val postEntities = posts.data.map { PostDto.fromArray(it).toEntity() }
-            postDao.insertPosts(postEntities)
+            val response = postApi.getAllPosts()
+            if (response.isSuccessful && response.body() != null) {
+                // Delete all existing posts before inserting new ones
+                postDao.deleteAllPosts()
+                val postEntities = response.body()!!.data.map { PostDto.fromArray(it).toEntity() }
+                postDao.insertPosts(postEntities)
+            } else {
+                Log.e("PostRepository", "Error fetching posts: ${response.message()}")
+            }
         } catch (e: Exception) {
             Log.e("PostRepository", "Error fetching posts from server", e)
         }
@@ -68,30 +75,85 @@ class PostRepository @Inject constructor(
         // This functionality is handled by the CaptionRepository
     }
 
-    suspend fun getPostById(id: Int): Post {
-        val response = postApi.getPostById(id)
-        return PostDto.fromArray(response.data[0]).toDomain()
+    suspend fun getPostById(id: Int): Post? {
+        try {
+            // Unfortunately there's no direct API for getting a post by ID
+            // We'll get all posts and filter by ID
+            val response = postApi.getAllPosts()
+            if (response.isSuccessful && response.body() != null) {
+                val posts = response.body()!!.data.map { PostDto.fromArray(it).toDomain() }
+                return posts.find { it.id == id }
+            }
+            return null
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Error getting post by ID: $id", e)
+            return null
+        }
     }
 
     suspend fun getAllPosts(): List<Post> {
         val response = postApi.getAllPosts()
-        return response.data.map { PostDto.fromArray(it).toDomain() }
+        return if (response.isSuccessful && response.body() != null) {
+            response.body()!!.data.map { PostDto.fromArray(it).toDomain() }
+        } else {
+            emptyList()
+        }
     }
 
     suspend fun getPostsByUser(userId: Int): List<Post> {
-        val response = postApi.getPostsByUser(userId)
-        return response.data.map { PostDto.fromArray(it).toDomain() }
+        val response = postApi.getUserPosts(userId)
+        return if (response.isSuccessful && response.body() != null) {
+            response.body()!!.data.map { PostDto.fromArray(it).toDomain() }
+        } else {
+            emptyList()
+        }
     }
 
-    suspend fun createPost(userId: Int, password: String, imageFile: File, caption: String? = null): Post {
-        val userIdBody = userId.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-        val passwordBody = password.toRequestBody("text/plain".toMediaTypeOrNull())
-        val imageRequestBody = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
-        val imagePart = MultipartBody.Part.createFormData("image", imageFile.name, imageRequestBody)
-        val captionBody = caption?.toRequestBody("text/plain".toMediaTypeOrNull())
+    suspend fun createPost(userId: Int, imageFile: File, caption: String? = null): Post? {
+        try {
+            val currentUser = userRepository.currentUser.first() ?: throw IllegalStateException("No user logged in")
+            val password = sessionManager.getUserPassword()
+            if (password.isEmpty()) {
+                throw IllegalStateException("No password available. Please log in again.")
+            }
+            
+            val userIdBody = userId.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+            val passwordBody = password.toRequestBody("text/plain".toMediaTypeOrNull())
+            val imageRequestBody = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
+            val imagePart = MultipartBody.Part.createFormData("image", imageFile.name, imageRequestBody)
+            val captionBody = caption?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-        val response = postApi.createPost(userIdBody, passwordBody, imagePart, captionBody)
-        return PostDto.fromArray(response.data[0]).toDomain()
+            val response = postApi.createPost(userIdBody, passwordBody, imagePart, captionBody)
+            if (response.isSuccessful && response.body() != null) {
+                val createResponse = response.body()!!
+                Log.d("PostRepository", "Post created successfully: ${createResponse.message}")
+                
+                // Create a new post object with the returned ID and data
+                val newPost = Post(
+                    id = createResponse.data.postId,
+                    userId = currentUser.id,
+                    username = currentUser.username ?: "User ${currentUser.id}",
+                    imageUrl = "$baseUrl/post/user_post_images/${createResponse.data.imageName}",
+                    createdAt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                        .format(java.util.Date()),
+                    likeCount = 0,
+                    captionCount = if (caption != null) 1 else 0,
+                    content = caption ?: "",
+                    likes = 0,
+                    likedByUser = false
+                )
+                
+                // Save to local database
+                postDao.insertPost(newPost.toEntity())
+                return newPost
+            } else {
+                Log.e("PostRepository", "Failed to create post: ${response.message()}")
+                return null
+            }
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Error creating post", e)
+            return null
+        }
     }
 
     suspend fun updatePost(post: Post) {
@@ -99,7 +161,12 @@ class PostRepository @Inject constructor(
     }
 
     suspend fun deletePost(id: Int) {
-        postApi.deletePost(id)
+        // Since deletePost requires a more complex format with userId and password,
+        // this functionality is not fully implemented
+        // It would require format: "postId_userId_password"
+        Log.w("PostRepository", "deletePost is not fully implemented - requires userId and password")
+        
+        // TODO: Implement this when needed with the proper authentication
     }
 
     suspend fun toggleLike(postId: Int) {
@@ -121,10 +188,16 @@ class PostRepository @Inject constructor(
                     password = password
                 )
                 val response = postApi.likePost(likeRequest)
-                Log.d("PostRepository", "Post liked on server: $postId")
-                
-                // Update local database directly
-                updateLocalPostLikeCount(postId)
+                if (response.isSuccessful) {
+                    Log.d("PostRepository", "Post liked on server: $postId")
+                    
+                    // Update local database directly
+                    updateLocalPostLikeCount(postId)
+                } else {
+                    Log.e("PostRepository", "Server error liking post: ${response.message()}")
+                    // Still update local DB for responsiveness
+                    updateLocalPostLikeCount(postId)
+                }
             } catch (e: Exception) {
                 // If server call fails, update the local database as a fallback
                 Log.e("PostRepository", "Error liking post on server, falling back to local update", e)

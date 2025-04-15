@@ -2,6 +2,7 @@ from litestar import Controller, get, status_codes, post, patch, delete
 from litestar.exceptions import HTTPException
 from litestar.params import Body
 from litestar.datastructures import UploadFile
+from litestar.response import Response
 import sqlite3
 
 import uuid
@@ -11,7 +12,7 @@ from typing import Optional
 
 from src.modules.data_types import DT_PostCreate
 
-postImageFolder = 'user_post_images'
+postImageFolder = 'src/user_post_images'
 
 
 class Controller_Post(Controller):
@@ -276,3 +277,17 @@ class Controller_Post(Controller):
 
         except Exception as e:
             raise HTTPException(status_code=status_codes.HTTP_400_BAD_REQUEST, detail=f"ERROR: {e}")
+
+    # Add a route to serve image files
+    @get("/user_post_images/{image_name:str}", status_code=status_codes.HTTP_200_OK)
+    async def get_post_image(self, image_name: str) -> Response:
+        try:
+            image_path = os.path.join(postImageFolder, image_name)
+            if not os.path.exists(image_path):
+                raise HTTPException(status_code=status_codes.HTTP_404_NOT_FOUND, detail=f"Image {image_name} not found")
+            
+            return Response(content=open(image_path, "rb").read(), media_type="image/jpeg")
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(status_code=status_codes.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error serving image: {e}")

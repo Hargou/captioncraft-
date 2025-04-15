@@ -9,6 +9,18 @@ data class PostResponse(
     val data: List<List<Any>>
 )
 
+// New response class for post creation
+data class PostCreateResponse(
+    val status: String,
+    val message: String,
+    val data: PostCreateData
+)
+
+data class PostCreateData(
+    val postId: Int,
+    val imageName: String
+)
+
 data class PostDto(
     val id: Int,
     val userId: Int,
@@ -18,6 +30,8 @@ data class PostDto(
     val captionCount: Int
 ) {
     companion object {
+        private const val BASE_URL = "http://10.0.2.2:8000"
+        
         fun fromArray(array: List<Any>): PostDto {
             val imageName = array[2] as String
             
@@ -41,7 +55,7 @@ data class PostDto(
             return PostDto(
                 id = (array[0] as? Double)?.toInt() ?: -1,
                 userId = (array[1] as? Double)?.toInt() ?: -1,
-                imageUrl = "http://10.0.2.2:8000/user_post_images/$imageName",
+                imageUrl = "$BASE_URL/post/user_post_images/$imageName",
                 createdAt = array[3] as String,
                 likeCount = (array[4] as? Double)?.toInt() ?: 0,
                 captionCount = captionCount

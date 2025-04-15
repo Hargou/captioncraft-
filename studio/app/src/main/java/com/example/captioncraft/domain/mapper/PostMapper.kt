@@ -11,7 +11,11 @@ fun PostDto.toDomain(): Post = Post(
     imageUrl = imageUrl,
     createdAt = createdAt,
     likeCount = likeCount,
-    captionCount = captionCount
+    captionCount = captionCount,
+    username = "",
+    content = "",
+    likes = likeCount,
+    likedByUser = false
 )
 
 fun PostEntity.toDomain(): Post = Post(
@@ -20,7 +24,11 @@ fun PostEntity.toDomain(): Post = Post(
     imageUrl = imageUrl,
     createdAt = createdAt,
     likeCount = likeCount,
-    captionCount = captionCount
+    captionCount = captionCount,
+    username = "",
+    content = "",
+    likes = likeCount,
+    likedByUser = false
 )
 
 fun Post.toEntity(): PostEntity = PostEntity(

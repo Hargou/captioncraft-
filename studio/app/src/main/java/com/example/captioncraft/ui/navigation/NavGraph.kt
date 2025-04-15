@@ -23,7 +23,11 @@ fun NavGraph() {
         }
         
         composable("feed") {
-            FeedScreen()
+            FeedScreen(
+                onPostClick = { /* Handle post click */ },
+                onAddCaptionClick = { /* Handle add caption click */ },
+                onNavigateToAddPost = { /* Handle navigate to add post */ }
+            )
         }
         
         composable("profile") {

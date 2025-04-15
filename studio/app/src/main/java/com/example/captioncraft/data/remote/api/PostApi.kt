@@ -1,21 +1,20 @@
 package com.example.captioncraft.data.remote.api
 
-import com.example.captioncraft.data.remote.dto.PostDto
-import com.example.captioncraft.data.remote.dto.PostResponse
 import com.example.captioncraft.data.remote.dto.LikeRequest
+import com.example.captioncraft.data.remote.dto.LikeResponse
+import com.example.captioncraft.data.remote.dto.PostCreateResponse
+import com.example.captioncraft.data.remote.dto.PostResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import retrofit2.Response
 import retrofit2.http.*
 
 interface PostApi {
-    @GET("post/{id}")
-    suspend fun getPostById(@Path("id") id: Int): PostResponse
+    @GET("post")
+    suspend fun getAllPosts(): Response<PostResponse>
 
     @GET("post")
-    suspend fun getAllPosts(): PostResponse
-
-    @GET("post")
-    suspend fun getPostsByUser(@Query("userId") userId: Int): PostResponse
+    suspend fun getUserPosts(@Query("userId") userId: Int): Response<PostResponse>
 
     @Multipart
     @POST("post/create")
@@ -23,15 +22,11 @@ interface PostApi {
         @Part("userId") userId: RequestBody,
         @Part("password") password: RequestBody,
         @Part image: MultipartBody.Part,
-        @Part("caption") caption: RequestBody?
-    ): PostResponse
-
-    @PUT("post/{id}")
-    suspend fun updatePost(@Path("id") id: Int, @Body post: PostDto): PostResponse
-
-    @DELETE("post/{id}")
-    suspend fun deletePost(@Path("id") id: Int)
+        @Part("userCaptionText") caption: RequestBody? = null
+    ): Response<PostCreateResponse>
 
     @POST("post/like")
-    suspend fun likePost(@Body likeRequest: LikeRequest): PostResponse
+    suspend fun likePost(
+        @Body likeRequest: LikeRequest
+    ): Response<LikeResponse>
 }
