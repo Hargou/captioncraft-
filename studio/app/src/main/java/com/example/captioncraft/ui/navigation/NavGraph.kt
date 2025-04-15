@@ -25,7 +25,7 @@ fun NavGraph() {
         composable("feed") {
             FeedScreen(
                 onPostClick = { /* Handle post click */ },
-                onAddCaptionClick = { /* Handle add caption click */ },
+                onAddCaptionClick = { /* No-op, handled internally */ },
                 onNavigateToAddPost = { /* Handle navigate to add post */ }
             )
         }

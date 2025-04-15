@@ -51,6 +51,10 @@ fun FeedScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     
+    // State for managing the add caption dialog
+    var showAddCaptionDialog by remember { mutableStateOf(false) }
+    var selectedPostId by remember { mutableStateOf<Int?>(null) }
+    
     LaunchedEffect(key1 = true) {
         viewModel.loadFeed()
     }
@@ -63,6 +67,23 @@ fun FeedScreen(
                 duration = SnackbarDuration.Short
             )
         }
+    }
+    
+    // Show add caption dialog if needed
+    if (showAddCaptionDialog && selectedPostId != null) {
+        AddCaptionDialog(
+            onDismiss = { 
+                showAddCaptionDialog = false
+                selectedPostId = null
+            },
+            onSubmit = { caption ->
+                selectedPostId?.let { postId ->
+                    viewModel.addCaption(postId, caption)
+                }
+                showAddCaptionDialog = false
+                selectedPostId = null
+            }
+        )
     }
     
     Scaffold(
@@ -124,7 +145,10 @@ fun FeedScreen(
                             post = post,
                             onLikePost = { viewModel.togglePostLike(it) },
                             onCaptionClick = onPostClick,
-                            onAddCaptionClick = onAddCaptionClick
+                            onAddCaptionClick = { postId ->
+                                selectedPostId = postId
+                                showAddCaptionDialog = true
+                            }
                         )
                     }
                 }
@@ -490,4 +514,55 @@ private fun formatDate(date: java.util.Date?): String {
         diffInSeconds < 86400 -> "${diffInSeconds / 3600}h ago"
         else -> "${diffInSeconds / 86400}d ago"
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddCaptionDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var captionText by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Caption") },
+        text = {
+            Column {
+                Text(
+                    "Write a creative caption for this post!",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                OutlinedTextField(
+                    value = captionText,
+                    onValueChange = { captionText = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    placeholder = { Text("Enter your caption...") },
+                    maxLines = 5
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (captionText.isBlank()) {
+                        Toast.makeText(context, "Caption cannot be empty", Toast.LENGTH_SHORT).show()
+                    } else {
+                        onSubmit(captionText)
+                    }
+                }
+            ) {
+                Text("Submit")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

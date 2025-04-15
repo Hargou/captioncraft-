@@ -84,9 +84,7 @@ fun CaptionCraftApp() {
                     onPostClick = { postId -> 
                         // You can navigate to post details screen here
                     },
-                    onAddCaptionClick = { postId ->
-                        // You can navigate to add caption screen here
-                    },
+                    onAddCaptionClick = { /* No-op, handled internally */ },
                     onNavigateToAddPost = {
                         navController.navigate(Screen.Upload.route)
                     }
