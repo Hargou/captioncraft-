@@ -35,30 +35,29 @@ class CaptionRepository @Inject constructor(
                 val captionsDto = CaptionResponse.toCaptionDtoList(response)
                 
                 // Map to domain objects
-                val captions = captionsDto.mapIndexed { index, dto ->
+                val captions = captionsDto.mapNotNull { dto ->
                     try {
-                        val caption = dto.toDomain()
-                        Log.d(TAG, "Mapped CaptionDto to domain $index: id=${caption.id}, text='${caption.text}', username=${caption.username}")
+                        val caption = dto.toDomain().copy(
+                            username = dto.username ?: "User ${dto.userId}"
+                        )
+                        Log.d(TAG, "Mapped CaptionDto to domain: id=${caption.id}, text='${caption.text}', username=${caption.username}")
                         caption
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error mapping CaptionDto to domain at index $index", e)
+                        Log.e(TAG, "Error mapping CaptionDto to domain", e)
                         null
                     }
-                }.filterNotNull()
+                }
                 
                 Log.d(TAG, "Processed ${captions.size} captions for post $postId")
                 emit(captions)
             } catch (e: Exception) {
-                // Handle exceptions properly
                 Log.e(TAG, "Error fetching captions for post $postId", e)
-                // Emit empty list for all exceptions
-                emit(emptyList())
+                // Don't attempt to emit if it's a cancellation exception
+                if (!e.javaClass.name.contains("AbortFlowException") && 
+                    !e.javaClass.name.contains("CancellationException")) {
+                    emit(emptyList())
+                }
             }
-        }.catch { e ->
-            // Handle exceptions properly with the Flow.catch operator
-            Log.e(TAG, "Error in caption flow for post $postId", e)
-            // Emit empty list for all exceptions
-            emit(emptyList())
         }
     }
 

@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,15 +32,15 @@ import com.example.captioncraft.domain.model.Comment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.ui.text.style.TextOverflow
 import android.util.Log
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun FeedScreen(
@@ -54,6 +56,10 @@ fun FeedScreen(
     // State for managing the add caption dialog
     var showAddCaptionDialog by remember { mutableStateOf(false) }
     var selectedPostId by remember { mutableStateOf<Int?>(null) }
+    
+    // State for managing the caption screen
+    var showCaptionsScreen by remember { mutableStateOf(false) }
+    var selectedPostForCaptions by remember { mutableStateOf<Post?>(null) }
     
     LaunchedEffect(key1 = true) {
         viewModel.loadFeed()
@@ -82,6 +88,31 @@ fun FeedScreen(
                 }
                 showAddCaptionDialog = false
                 selectedPostId = null
+            }
+        )
+    }
+    
+    // Show captions screen if needed
+    if (showCaptionsScreen && selectedPostForCaptions != null) {
+        CaptionsScreen(
+            post = selectedPostForCaptions!!,
+            onDismiss = {
+                showCaptionsScreen = false
+                selectedPostForCaptions = null
+            },
+            onLikeCaption = { captionId ->
+                viewModel.toggleLike(captionId)
+            },
+            onAddComment = { captionId, text ->
+                viewModel.addComment(captionId, text)
+            },
+            commentsForCaption = uiState.commentsForCaption,
+            showCommentsForCaption = uiState.showCommentsForCaption,
+            onShowComments = { captionId ->
+                viewModel.loadCommentsForCaption(captionId)
+            },
+            onHideComments = {
+                viewModel.hideComments()
             }
         )
     }
@@ -144,10 +175,20 @@ fun FeedScreen(
                         PostCard(
                             post = post,
                             onLikePost = { viewModel.togglePostLike(it) },
-                            onCaptionClick = onPostClick,
+                            onCaptionClick = { postId ->
+                                // Find the post with this ID and show captions screen
+                                val postToView = uiState.posts.find { it.id == postId }
+                                if (postToView != null) {
+                                    selectedPostForCaptions = postToView
+                                    showCaptionsScreen = true
+                                }
+                            },
                             onAddCaptionClick = { postId ->
                                 selectedPostId = postId
                                 showAddCaptionDialog = true
+                            },
+                            onLikeCaption = { captionId ->
+                                viewModel.toggleLike(captionId)
                             }
                         )
                     }
@@ -164,8 +205,19 @@ fun PostCard(
     onLikePost: (Int) -> Unit,
     onCaptionClick: (Int) -> Unit,
     onAddCaptionClick: (Int) -> Unit,
+    onLikeCaption: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Debug log to check post captions
+    LaunchedEffect(post.id) {
+        Log.d("PostCard", "Post #${post.id} has ${post.captions.size} captions and captionCount=${post.captionCount}")
+        if (post.captions.isNotEmpty()) {
+            post.captions.forEachIndexed { index, caption ->
+                Log.d("PostCard", "Caption #$index: id=${caption.id}, text='${caption.text}', username=${caption.username}")
+            }
+        }
+    }
+    
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -263,18 +315,42 @@ fun PostCard(
             ) {
                 if (post.captions.isNotEmpty()) {
                     val topCaption = post.captions.first()
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            text = topCaption.username,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = topCaption.text,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                    Log.d("PostCard", "Displaying top caption: id=${topCaption.id}, text='${topCaption.text}', username=${topCaption.username}")
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = topCaption.username,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = topCaption.text,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = topCaption.likes.toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                            IconButton(
+                                onClick = { onLikeCaption(topCaption.id) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ThumbUp,
+                                    contentDescription = "Like Caption",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 } else {
                     Box(
@@ -299,12 +375,12 @@ fun PostCard(
                     .fillMaxWidth()
                     .padding(top = 8.dp)
             ) {
-                if (post.captionCount > 0) {
+                if (post.captionCount > 0 || post.captions.isNotEmpty()) {
                     Button(
                         onClick = { onCaptionClick(post.id) },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("View Captions (${post.captionCount})")
+                        Text("View Captions (${post.captions.size.coerceAtLeast(post.captionCount)})")
                     }
                     
                     Spacer(modifier = Modifier.width(8.dp))
@@ -562,6 +638,152 @@ fun AddCaptionDialog(
         dismissButton = {
             OutlinedButton(onClick = onDismiss) {
                 Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun CaptionsScreen(
+    post: Post,
+    onDismiss: () -> Unit,
+    onLikeCaption: (Int) -> Unit,
+    onAddComment: (Int, String) -> Unit,
+    commentsForCaption: Map<Int, List<Comment>>,
+    showCommentsForCaption: Int?,
+    onShowComments: (Int) -> Unit,
+    onHideComments: () -> Unit
+) {
+    // Debug log
+    LaunchedEffect(post.id) {
+        Log.d("CaptionsScreen", "Displaying captions for post #${post.id}")
+        Log.d("CaptionsScreen", "Post has ${post.captions.size} captions and captionCount=${post.captionCount}")
+        post.captions.forEachIndexed { index, caption ->
+            Log.d("CaptionsScreen", "Caption #$index: id=${caption.id}, text='${caption.text}', username=${caption.username}")
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true),
+        title = { Text("Captions for Post #${post.id} (${post.captions.size})") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                // Post image thumbnail
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(post.imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(150.dp),
+                    contentScale = ContentScale.Crop,
+                    error = painterResource(id = R.drawable.placeholder_image),
+                    placeholder = painterResource(id = R.drawable.placeholder_image)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (post.captions.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No captions available for this post.")
+                    }
+                } else {
+                    LazyColumn {
+                        items(post.captions) { caption ->
+                            val isShowingComments = showCommentsForCaption == caption.id
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                            .clickable {
+                                                if (isShowingComments) {
+                                                    onHideComments()
+                                                } else {
+                                                    onShowComments(caption.id)
+                                                }
+                                            },
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    text = caption.username,
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = caption.likes.toString(),
+                                                        style = MaterialTheme.typography.labelMedium
+                                                    )
+                                                    IconButton(
+                                                        onClick = { onLikeCaption(caption.id) },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.ThumbUp,
+                                                            contentDescription = "Like",
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            
+                                            Text(
+                                                text = caption.text,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                // Show comments if selected
+                                if (isShowingComments) {
+                                    val comments = commentsForCaption[caption.id] ?: emptyList()
+                                    CommentSection(
+                                        captionId = caption.id,
+                                        comments = comments,
+                                        onAddComment = onAddComment,
+                                        onClose = onHideComments
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
             }
         }
     )

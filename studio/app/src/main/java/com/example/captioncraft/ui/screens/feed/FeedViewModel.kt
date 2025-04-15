@@ -53,52 +53,76 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                postRepository.getFeedPosts().collect { posts ->
-                    Log.d("FeedViewModel", "Got ${posts.size} posts from repository")
-                    
-                    val cachedCaptions = _uiState.value.cachedPostCaptions.toMutableMap()
-                    
-                    val postsWithCaptions = posts.map { post ->
-                        try {
-                            // Check if we have cached captions for this post
-                            val captions = if (cachedCaptions.containsKey(post.id) && cachedCaptions[post.id]?.isNotEmpty() == true) {
-                                Log.d("FeedViewModel", "Using cached captions for post ${post.id}")
-                                cachedCaptions[post.id] ?: emptyList()
-                            } else {
-                                // Fetch captions for this post
+                // Get ONLY the first/latest emission from the repository Flow
+                val posts = postRepository.getFeedPosts().first()
+                Log.d("FeedViewModel", "Got ${posts.size} posts from repository (using .first())")
+
+                val cachedCaptions = _uiState.value.cachedPostCaptions.toMutableMap()
+                val postsWithCaptions = mutableListOf<Post>()
+
+                for (post in posts) {
+                    try {
+                        // Check cache first
+                        val captions = if (cachedCaptions.containsKey(post.id)) {
+                            Log.d("FeedViewModel", "Using cached captions for post ${post.id}")
+                            cachedCaptions[post.id] ?: emptyList()
+                        } else {
+                            // Fetch captions if not cached
+                            Log.d("FeedViewModel", "Fetching captions for post ${post.id} from repository")
+                            try {
+                                // Use .first() here too for safety, assuming getCaptionsForPost emits the full list once
                                 val fetchedCaptions = captionRepository.getCaptionsForPost(post.id).first()
-                                Log.d("FeedViewModel", "Loaded ${fetchedCaptions.size} captions for post ${post.id}")
+                                Log.d("FeedViewModel", "Successfully loaded ${fetchedCaptions.size} captions for post ${post.id}")
+                                
+                                // Debug each fetched caption
+                                fetchedCaptions.forEachIndexed { index, caption ->
+                                    Log.d("FeedViewModel", "Fetched Caption for Post ${post.id} #$index: id=${caption.id}, text='${caption.text}', username=${caption.username}")
+                                }
                                 
                                 // Cache the captions
                                 cachedCaptions[post.id] = fetchedCaptions
-                                
                                 fetchedCaptions
+                            } catch (e: Exception) {
+                                Log.e("FeedViewModel", "Error loading captions from repository for post ${post.id}", e)
+                                emptyList()
                             }
-                            
-                            // Copy the post with the captions and ensure the caption count matches
-                            val updatedPost = post.copy(
-                                captions = captions,
-                                captionCount = captions.size.coerceAtLeast(post.captionCount) // Use the larger of the two
-                            )
-                            
-                            Log.d("FeedViewModel", "Updated post ${updatedPost.id} to have ${updatedPost.captions.size} captions and count=${updatedPost.captionCount}")
-                            updatedPost
-                        } catch (e: Exception) {
-                            Log.e("FeedViewModel", "Error loading captions for post ${post.id}", e)
-                            post.copy(captions = emptyList())
                         }
+                        
+                        // Create the updated Post object
+                        val updatedPost = post.copy(
+                            captions = captions,
+                            captionCount = captions.size.coerceAtLeast(post.captionCount)
+                        )
+                        
+                        Log.d("FeedViewModel", "Processed post ${updatedPost.id} - Captions: ${updatedPost.captions.size}, Count: ${updatedPost.captionCount}")
+                        postsWithCaptions.add(updatedPost)
+                        
+                    } catch (e: Exception) {
+                        Log.e("FeedViewModel", "Error processing post ${post.id} during caption loading", e)
+                        // Add the original post without captions if processing failed
+                        postsWithCaptions.add(post.copy(captions = emptyList())) 
                     }
-                    
-                    Log.d("FeedViewModel", "Loaded ${postsWithCaptions.size} posts with captions")
-                    _uiState.update { it.copy(
-                        posts = postsWithCaptions, 
-                        isLoading = false,
-                        cachedPostCaptions = cachedCaptions
-                    ) }
                 }
+
+                Log.d("FeedViewModel", "Finished processing all posts. Total posts with captions: ${postsWithCaptions.size}")
+                
+                // Update the UI state ONCE with the final list
+                _uiState.update { 
+                    it.copy(
+                        posts = postsWithCaptions,
+                        isLoading = false,
+                        cachedPostCaptions = cachedCaptions // Update cache in state
+                    )
+                }
+                
+                // Final debug log of the state being set
+                postsWithCaptions.forEach { finalPost ->
+                    Log.d("FeedViewModel", "Final UI State - Post #${finalPost.id}: Captions Size=${finalPost.captions.size}, CaptionCount=${finalPost.captionCount}")
+                }
+
             } catch (e: Exception) {
-                Log.e("FeedViewModel", "Error loading feed", e)
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
+                Log.e("FeedViewModel", "Error in loadFeed top level", e)
+                _uiState.update { it.copy(error = e.message ?: "Failed to load feed", isLoading = false) }
             }
         }
     }
