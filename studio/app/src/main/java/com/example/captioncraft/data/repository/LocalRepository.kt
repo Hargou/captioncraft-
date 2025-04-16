@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.util.Log
 
 @Singleton
 class LocalRepository @Inject constructor() {
@@ -22,26 +23,21 @@ class LocalRepository @Inject constructor() {
     private val _posts = MutableStateFlow<List<PostEntity>>(emptyList())
     val posts: StateFlow<List<PostEntity>> = _posts.asStateFlow()
 
-    fun login(username: String, password: String) {
-        val user = UserEntity(
-            id = 1, // This should be replaced with actual user ID from the database
-            username = username,
-            name = username,
-            password = password,
-            profilePicture = null,
-            createdAt = Date()
-        )
+    fun login(user: UserEntity) {
+        Log.d("LocalRepository", "Updating local currentUser state with User ID: ${user.id}, Username: ${user.username}")
         _currentUser.value = user
         _users.update { currentUsers ->
-            if (currentUsers.none { it.id == user.id }) {
-                currentUsers + user
+            val existingUserIndex = currentUsers.indexOfFirst { it.id == user.id }
+            if (existingUserIndex != -1) {
+                currentUsers.toMutableList().apply { set(existingUserIndex, user) }
             } else {
-                currentUsers
+                currentUsers + user
             }
         }
     }
 
     fun logout() {
+        Log.d("LocalRepository", "Clearing local currentUser state.")
         _currentUser.value = null
     }
 

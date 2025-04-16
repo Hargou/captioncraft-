@@ -25,9 +25,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.navigation.NavHostController
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
+import com.example.captioncraft.R
+import com.example.captioncraft.domain.model.Post
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
@@ -155,7 +158,7 @@ fun ProfileStat(label: String, count: Int) {
 }
 
 @Composable
-fun PostThumbnail(post: PostEntity) {
+fun PostThumbnail(post: Post) {
     Surface(
         modifier = Modifier
             .aspectRatio(1f)
@@ -166,7 +169,9 @@ fun PostThumbnail(post: PostEntity) {
             model = post.imageUrl,
             contentDescription = "Post Thumbnail",
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            error = painterResource(id = R.drawable.placeholder_image),
+            placeholder = painterResource(id = R.drawable.placeholder_image)
         )
     }
 }

@@ -101,11 +101,23 @@ class PostRepository @Inject constructor(
     }
 
     suspend fun getPostsByUser(userId: Int): List<Post> {
-        val response = postApi.getUserPosts(userId)
-        return if (response.isSuccessful && response.body() != null) {
-            response.body()!!.data.map { PostDto.fromArray(it).toDomain() }
-        } else {
-            emptyList()
+        Log.d("PostRepository", "getPostsByUser called for userId: $userId")
+        try {
+            val response = postApi.getUserPosts(userId)
+            Log.d("PostRepository", "API response for getUserPosts($userId): Code=${response.code()}, Success=${response.isSuccessful}")
+            if (response.isSuccessful && response.body() != null) {
+                val responseBody = response.body()!!
+                Log.d("PostRepository", "getUserPosts($userId) response body: Status=${responseBody.status}, Message=${responseBody.message}, Data=${responseBody.data}")
+                val posts = responseBody.data.map { PostDto.fromArray(it).toDomain() }
+                Log.d("PostRepository", "Mapped ${posts.size} posts for userId: $userId. Posts: $posts")
+                return posts
+            } else {
+                Log.e("PostRepository", "getUserPosts($userId) failed or body was null. Code: ${response.code()}, Message: ${response.message()}")
+                return emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e("PostRepository", "Exception in getPostsByUser($userId)", e)
+            return emptyList()
         }
     }
 

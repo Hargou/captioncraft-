@@ -1,5 +1,6 @@
 package com.example.captioncraft.ui.screens.login
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,6 +10,7 @@ import com.example.captioncraft.data.repository.LocalRepository
 import com.example.captioncraft.data.repository.UserRepository
 import com.example.captioncraft.domain.model.User
 import com.example.captioncraft.data.remote.dto.RegisterDto
+import com.example.captioncraft.domain.mapper.toEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,13 +56,17 @@ class LoginViewModel @Inject constructor(
             _loginStatus.value = LoginUiState.Loading
             try {
                 val result = userRepository.login(username, password)
-                result.onSuccess { user ->
-                    localRepository.login(username, password)
+                result.onSuccess { userDomainModel ->
+                    val userEntity = userDomainModel.toEntity()
+                    Log.d("LoginViewModel", "Login successful for user ID: ${userEntity.id}. Updating LocalRepository.")
+                    localRepository.login(userEntity)
                     _loginStatus.value = LoginUiState.Success
                 }.onFailure { error ->
+                    Log.e("LoginViewModel", "Login failed", error)
                     _loginStatus.value = LoginUiState.Error(error.message ?: "Login failed")
                 }
             } catch (e: Exception) {
+                Log.e("LoginViewModel", "Exception during login", e)
                 _loginStatus.value = LoginUiState.Error(e.message ?: "Login failed")
             }
         }

@@ -1,6 +1,7 @@
 package com.example.captioncraft.ui.screens.profile
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -11,6 +12,7 @@ import com.example.captioncraft.data.repository.FollowRepository
 import com.example.captioncraft.data.repository.LocalRepository
 import com.example.captioncraft.data.repository.PostRepository
 import com.example.captioncraft.data.repository.UserRepository
+import com.example.captioncraft.domain.model.Post
 import com.example.captioncraft.ui.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -27,27 +29,20 @@ class ProfileViewModel @Inject constructor(
 
     val currentUser: StateFlow<UserEntity?> = localRepository.currentUser
 
-    private val _userPosts = MutableStateFlow<List<PostEntity>>(emptyList())
-    val userPosts: StateFlow<List<PostEntity>> = _userPosts
+    private val _userPosts = MutableStateFlow<List<Post>>(emptyList())
+    val userPosts: StateFlow<List<Post>> = _userPosts.asStateFlow()
 
     init {
         viewModelScope.launch {
-            currentUser.collect { user ->
-                user?.let {
-                    val posts = postRepository.getAllPosts()
-                        .filter { post -> post.userId == user.id }
-                        .map { post ->
-                            PostEntity(
-                                id = post.id,
-                                userId = post.userId,
-                                imageUrl = post.imageUrl,
-                                createdAt = post.createdAt,
-                                likeCount = post.likeCount,
-                                captionCount = post.captionCount
-                            )
-                        }
+            currentUser.filterNotNull().collectLatest { user ->
+                try {
+                    Log.d("ProfileViewModel", "Current user detected: ID=${user.id}, Username=${user.username}")
+                    Log.d("ProfileViewModel", "Fetching posts for user ID: ${user.id}")
+                    val posts = postRepository.getPostsByUser(user.id)
+                    Log.d("ProfileViewModel", "Fetched ${posts.size} posts for user ID: ${user.id}. Posts: $posts")
                     _userPosts.value = posts
-                } ?: run {
+                } catch (e: Exception) {
+                    Log.e("ProfileViewModel", "Error fetching user posts for user ID: ${user.id}", e)
                     _userPosts.value = emptyList()
                 }
             }
