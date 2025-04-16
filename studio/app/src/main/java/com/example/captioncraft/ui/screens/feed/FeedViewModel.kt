@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.catch
 
 data class FeedUiState(
     val posts: List<Post> = emptyList(),
@@ -145,49 +147,88 @@ class FeedViewModel @Inject constructor(
 
     fun addCaption(postId: Int, text: String) {
         viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) } // Show loading indicator
             try {
-                _uiState.update { it.copy(isLoading = true) }
-                val userId = userRepository.currentUser.value?.id ?: return@launch
+                val userId = userRepository.currentUser.value?.id ?: run {
+                    _uiState.update { it.copy(error = "User not logged in", isLoading = false) }
+                    return@launch
+                }
                 
                 val result = captionRepository.addCaption(postId, userId, text)
                 result.onSuccess { captionId ->
-                    // Successfully added caption, refresh feed
-                    loadFeed()
+                    // Successfully added caption, refresh feed to get the new caption
+                    Log.d("FeedViewModel", "Caption added successfully (ID: $captionId), refreshing feed.")
+                    loadFeed() 
                 }
                 result.onFailure { error ->
-                    _uiState.update { it.copy(error = error.message, isLoading = false) }
+                    Log.e("FeedViewModel", "Failed to add caption", error)
+                    _uiState.update { it.copy(error = error.message ?: "Failed to add caption", isLoading = false) }
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message, isLoading = false) }
+                Log.e("FeedViewModel", "Exception while adding caption", e)
+                _uiState.update { it.copy(error = e.message ?: "An error occurred", isLoading = false) }
             }
         }
     }
 
+    // Refactored toggleLike for captions
     fun toggleLike(captionId: Int) {
         viewModelScope.launch {
-            try {
-                val userId = userRepository.currentUser.value?.id ?: return@launch
-                
-                // Get current like status from UI state
-                val isCurrentlyLiked = _uiState.value.likedCaptions.contains(captionId)
-                
-                // Toggle like on server
-                captionRepository.toggleLike(captionId, userId, isCurrentlyLiked)
-                
-                // Update local state
-                val likedCaptions = _uiState.value.likedCaptions
-                if (isCurrentlyLiked) {
-                    likedCaptions.remove(captionId)
+            val currentUiState = _uiState.value
+            val userId = userRepository.currentUser.value?.id ?: run {
+                _uiState.update { it.copy(error = "User not logged in") }
+                return@launch
+            }
+
+            // Optimistically update the UI first
+            val isCurrentlyLiked = currentUiState.likedCaptions.contains(captionId)
+            val updatedLikedCaptions = currentUiState.likedCaptions.toMutableSet()
+            if (isCurrentlyLiked) {
+                updatedLikedCaptions.remove(captionId)
+            } else {
+                updatedLikedCaptions.add(captionId)
+            }
+
+            // Find the post and caption to update the like count visually
+            val updatedPosts = currentUiState.posts.map { post ->
+                val captionIndex = post.captions.indexOfFirst { it.id == captionId }
+                if (captionIndex != -1) {
+                    val caption = post.captions[captionIndex]
+                    val updatedLikeCount = if (isCurrentlyLiked) caption.likes - 1 else caption.likes + 1
+                    val updatedCaption = caption.copy(likes = updatedLikeCount.coerceAtLeast(0))
+                    val updatedCaptionsList = post.captions.toMutableList().apply { set(captionIndex, updatedCaption) }
+                    post.copy(captions = updatedCaptionsList)
                 } else {
-                    likedCaptions.add(captionId)
+                    post
                 }
-                
-                _uiState.update { it.copy(likedCaptions = likedCaptions) }
-                
-                // Refresh feed to get updated like counts
-                loadFeed()
+            }
+            
+            // Apply optimistic UI update
+            _uiState.update { 
+                it.copy(
+                    likedCaptions = updatedLikedCaptions,
+                    posts = updatedPosts
+                )
+            }
+            Log.d("FeedViewModel", "Optimistically updated UI for caption like: $captionId, Liked: ${!isCurrentlyLiked}")
+
+            // Now, call the repository to update the backend
+            try {
+                captionRepository.toggleLike(captionId, userId, isCurrentlyLiked)
+                Log.d("FeedViewModel", "Successfully toggled like on backend for caption $captionId")
+                // Optional: Could refresh just this post's captions from server if needed,
+                // but optimistic update might be enough for good UX.
+                // loadFeed() // Avoid full reload if optimistic update is sufficient
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                Log.e("FeedViewModel", "Error toggling like on backend for caption $captionId", e)
+                // Revert optimistic UI update on error
+                _uiState.update { 
+                    it.copy(
+                        likedCaptions = currentUiState.likedCaptions, // Revert liked set
+                        posts = currentUiState.posts, // Revert posts list
+                        error = e.message ?: "Failed to like caption"
+                    )
+                 }
             }
         }
     }

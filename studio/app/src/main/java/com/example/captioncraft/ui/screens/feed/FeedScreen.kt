@@ -94,27 +94,33 @@ fun FeedScreen(
     
     // Show captions screen if needed
     if (showCaptionsScreen && selectedPostForCaptions != null) {
-        CaptionsScreen(
-            post = selectedPostForCaptions!!,
-            onDismiss = {
-                showCaptionsScreen = false
-                selectedPostForCaptions = null
-            },
-            onLikeCaption = { captionId ->
-                viewModel.toggleLike(captionId)
-            },
-            onAddComment = { captionId, text ->
-                viewModel.addComment(captionId, text)
-            },
-            commentsForCaption = uiState.commentsForCaption,
-            showCommentsForCaption = uiState.showCommentsForCaption,
-            onShowComments = { captionId ->
-                viewModel.loadCommentsForCaption(captionId)
-            },
-            onHideComments = {
-                viewModel.hideComments()
-            }
-        )
+        // Find the *current* post from the UI state to ensure it reflects updates
+        val currentPostInState = uiState.posts.find { it.id == selectedPostForCaptions!!.id }
+        
+        // Only show the dialog if the post is still found in the current state
+        currentPostInState?.let { postToShow ->
+            CaptionsScreen(
+                post = postToShow, // Pass the up-to-date post from the state
+                onDismiss = {
+                    showCaptionsScreen = false
+                    selectedPostForCaptions = null
+                },
+                onLikeCaption = { captionId ->
+                    viewModel.toggleLike(captionId)
+                },
+                onAddComment = { captionId, text ->
+                    viewModel.addComment(captionId, text)
+                },
+                commentsForCaption = uiState.commentsForCaption,
+                showCommentsForCaption = uiState.showCommentsForCaption,
+                onShowComments = { captionId ->
+                    viewModel.loadCommentsForCaption(captionId)
+                },
+                onHideComments = {
+                    viewModel.hideComments()
+                }
+            )
+        }
     }
     
     Scaffold(
