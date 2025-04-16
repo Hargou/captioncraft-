@@ -1,22 +1,26 @@
 package com.example.captioncraft.ui.screens.search
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import com.example.captioncraft.R
 import com.example.captioncraft.data.local.entity.UserEntity
+import com.example.captioncraft.ui.Screen
 import androidx.compose.foundation.shape.CircleShape
 
 @Composable
 fun SearchScreen(
+    navController: NavController,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -43,7 +47,9 @@ fun SearchScreen(
             items(searchResults) { user ->
                 UserListItem(
                     user = user,
-                    onFollowClick = { viewModel.toggleFollow(user.id) }
+                    onUserClick = { 
+                        navController.navigate(Screen.UserProfile.createRoute(user.id))
+                    }
                 )
             }
         }
@@ -53,24 +59,23 @@ fun SearchScreen(
 @Composable
 fun UserListItem(
     user: UserEntity,
-    onFollowClick: () -> Unit
+    onUserClick: () -> Unit
 ) {
     ListItem(
+        modifier = Modifier.clickable(onClick = onUserClick),
         headlineContent = { Text(user.username) },
         leadingContent = {
-            // User avatar placeholder
             Surface(
                 modifier = Modifier.size(40.dp),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary
-            ) {}
-        },
-        trailingContent = {
-            IconButton(onClick = onFollowClick) {
-                Icon(
-                    Icons.Default.PersonAdd,
-                    contentDescription = stringResource(R.string.follow)
-                )
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                 Icon(
+                    Icons.Default.Person,
+                    contentDescription = "User Avatar",
+                    modifier = Modifier.padding(8.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                 )
             }
         }
     )

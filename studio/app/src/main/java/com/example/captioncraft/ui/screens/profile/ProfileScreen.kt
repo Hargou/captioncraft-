@@ -148,30 +148,3 @@ fun ProfileScreen(
         }
     }
 }
-
-@Composable
-fun ProfileStat(label: String, count: Int) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = count.toString(), style = MaterialTheme.typography.bodyLarge)
-        Text(text = label, style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-fun PostThumbnail(post: Post) {
-    Surface(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant
-    ) {
-        AsyncImage(
-            model = post.imageUrl,
-            contentDescription = "Post Thumbnail",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-            error = painterResource(id = R.drawable.placeholder_image),
-            placeholder = painterResource(id = R.drawable.placeholder_image)
-        )
-    }
-}

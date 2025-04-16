@@ -17,10 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.captioncraft.R
 import com.example.captioncraft.ui.screens.feed.FeedScreen
 import com.example.captioncraft.ui.screens.login.LoginScreen
@@ -28,6 +30,7 @@ import com.example.captioncraft.ui.screens.profile.ProfileScreen
 import com.example.captioncraft.ui.screens.search.SearchScreen
 import com.example.captioncraft.ui.screens.settings.SettingsScreen
 import com.example.captioncraft.ui.screens.upload.UploadScreen
+import com.example.captioncraft.ui.screens.profile.UserProfileScreen
 
 sealed class Screen(val route: String) {
     object Feed : Screen("feed")
@@ -36,6 +39,9 @@ sealed class Screen(val route: String) {
     object Profile : Screen("profile")
     object Settings : Screen("settings")
     object Login : Screen("login")
+    object UserProfile : Screen("userProfile/{userId}") {
+        fun createRoute(userId: Int) = "userProfile/$userId"
+    }
 }
 
 @Composable
@@ -90,11 +96,19 @@ fun CaptionCraftApp() {
                     }
                 ) 
             }
-            composable(Screen.Search.route) { SearchScreen() }
+            composable(Screen.Search.route) { 
+                SearchScreen(navController = navController)
+            }
             composable(Screen.Upload.route) { UploadScreen() }
             composable(Screen.Profile.route) { ProfileScreen(navController = navController) }
             composable(Screen.Settings.route) { SettingsScreen() }
             composable(Screen.Login.route) { LoginScreen(navController = navController) }
+            composable(
+                route = Screen.UserProfile.route, 
+                arguments = listOf(navArgument("userId") { type = NavType.IntType })
+            ) {
+                UserProfileScreen(navController = navController)
+            }
         }
     }
 } 

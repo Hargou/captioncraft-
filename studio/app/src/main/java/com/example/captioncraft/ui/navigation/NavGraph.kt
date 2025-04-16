@@ -35,7 +35,7 @@ fun NavGraph() {
         }
         
         composable("search") {
-            SearchScreen()
+            SearchScreen(navController = navController)
         }
         
         composable("upload") {
